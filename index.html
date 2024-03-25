@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+        integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <script src="https://unpkg.com/vue@2"></script>
+    <script src="https://unpkg.com/p5ble@0.0.4/dist/p5.ble.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="icon" type="image/png" href="favicon.png" />
+</head>
+
+<body>
+
+    <body>
+        <div class="container py-5" id="app">
+            <div class="row">
+                <div class="col-md-10 mx-auto">
+                    <h1>BLE Recorder</h1>
+                    <p>A web-based tool for recording BLE data sent as a String format from a peripheral device and
+                        converting it into a .csv file.<br>
+                        Note: The Web Bluetooth API, that this tool is based on, is only supported in the <a
+                            target="_blank"
+                            href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluetooth_API#browser_compatibility">here</a>
+                        listed browsers.</p>
+                    <h5 class="mt-5 mb-3" mb-3>1. Step - Specify Connection Details and Message Format</h5>
+                    <form onsubmit="return false;">
+                        <div class="form-group row">
+                            <div class="col-sm-12">
+                                <label for="serviveUUID">Service UUID of Peripheral:</label>
+                                <input type="text" class="form-control" id="serviveUUID" v-model="serviceUUID"
+                                    :disabled="isConnected" required>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <div class="col-sm-8">
+                                <label for="messageFormat">Message Format:</label>
+                                <input type="text" class="form-control" id="messageFormat"
+                                    placeholder="{{messageFormat}}" v-model="messageFormat" :disabled="isConnected"
+                                    required>
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="valueDelimiter">Delimiter Symbol:</label>
+                                <input type="text" class="form-control" id="valueDelimiter" placeholder="{{delimiter}}"
+                                    v-model="delimiter" :disabled="isConnected" required>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <div class="col-sm-12">
+                                <label class='d-block'>Establish the Connection:</label>
+                                <input @click="connectBLE" type="submit" value="Connect" class="btn btn-success px-4"
+                                    :disabled="isConnected">
+                                <button @click="disconnectBLE" type="button" :disabled="!isConnected"
+                                    class="btn btn-danger px-4">Disconnect</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div v-if="isConnected">
+                <hr />
+                <div class="row">
+                    <div class="col-md-10 mx-auto">
+                        <h5 class="mt-5 mb-3">2. Step - Check the Connection and specify Recording Settings</h5>
+                        <form onsubmit="return false;">
+                            <div class="form-group row">
+                                <div class="col-sm-12">
+                                    <label>Raw Data:</label>
+                                    <p type="text" class="form-control">
+                                        {{log}}
+                                    <p>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-sm-3" v-for="(value, name) in parsed">
+                                    <label>{{name}}:</label>
+                                    <p type="text" class="form-control">
+                                        {{value}}
+                                    <p>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-sm-6">
+                                    <label for="preparationTime">Preparation Time:</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="preparationTime"
+                                            v-model="preparationTime" placeholder="{{preparationTime}}" min=0 required
+                                            :disabled="isRecording">
+                                        <div class="input-group-append">
+                                            <div class="input-group-text">s</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label for="recordingTime">Recording Time:</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" placeholder="{{recordingTime}}"
+                                            v-model="recordingTime" id="recordingTime" min=1 required
+                                            :disabled="isRecording">
+                                        <div class="input-group-append">
+                                            <div class="input-group-text">s</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-sm-12">
+                                    <input type="checkbox" id="addExtraTimestamp" v-model="addExtraTimestamp"
+                                        placeholder="{{addExtraTimestamp}}" required :disabled="isRecording">
+                                    <label class="form-check-label" for="addExtraTimestamp">Add additional
+                                        UNIX - Timestamp? (Use only if peripheral device does not send
+                                        timestamp!)</label>
+                                </div>
+                            </div>
+                            <div class="form-group row">
+                                <div class="col-sm-12">
+                                    <label class="d-block">Start the Recording:</label>
+                                    <input @click="startRecording" type="button" value="Start" :disabled="isRecording"
+                                        class="btn btn-success px-4">
+                                    <button @click="stopRecording" type="button" :disabled="!isRecording"
+                                        class="btn btn-danger px-4">Stop</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="isRecording">
+                <hr />
+                <div class="row">
+                    <div class="col-md-10 mx-auto">
+                        <h5 class="mt-5 mb-3">3. Step - Wait until Recording has finished and download .csv file</h5>
+                        <form onsubmit="return false;">
+                            <div class="form-group row">
+                                <div class="col-sm-4">
+                                    <label>Recording starts in:</label>
+                                    <p class="form-control" id="recordingCountdown">{{recordingStartsIn}}</p>
+                                </div>
+                                <div class="col-sm-4" id="last-element">
+                                    <label>Recording Time left:</label>
+                                    <p class="form-control" id="RecordingLeft">{{recordingTimeLeft}}</p>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label>Recording Duration:</label>
+                                    <p class="form-control" id="recordingDuration">{{recordingDuration}}</p>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <footer class="navbar fixed-bottom bg-dark">
+                <div class="text-white">Made with <span class="fa fa-heart text-danger"></span> in
+                    Bavaria by <a href="https://ludwigstumpp.com" target="_blank">Ludwig Stumpp</a>.
+                </div>
+            </footer>
+
+            <script src="index.js"></script>
+    </body>
+
+</html>
